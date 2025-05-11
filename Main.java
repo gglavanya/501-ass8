@@ -1,4 +1,6 @@
 import java.util.*;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.application.Application;
 import javafx.scene.Scene;
 import javafx.scene.control.ScrollPane;
@@ -11,6 +13,7 @@ import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
 import javafx.scene.text.Text;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 
 class NodePoint {
     int node_number;
@@ -186,7 +189,7 @@ class SensorGraph {
                             visited[node_point.node_number] = true;
                             queue.add(node_point);
                         }}}
-                result.add(node_bfs_list);
+                        result.add(node_bfs_list);
             }
         }
         return result;
@@ -202,7 +205,7 @@ class SensorGraph {
                 dfsListRec(visited, node_dfs_list, i);
                 result.add(node_dfs_list);
             }}
-        return result;
+            return result;
     }
 
     private void dfsListRec(boolean[] visited, List<Integer> node_dfs_list, int node) {
@@ -248,7 +251,7 @@ class SensorGraph {
                     visited[edge.destination.node_number] = true;
                     queue.add(edge.destination);
                 }}}
-    }
+            }
 
     private List<Edge> computePrimMST(NodePoint start_node) {
         List<Edge> mst_edges = new ArrayList<>();
@@ -270,7 +273,7 @@ class SensorGraph {
                     if (!visited.contains(next_edge.destination)) {
                         edge_queue.add(next_edge);
                     }}}
-        }
+                }
         return mst_edges;
     }
 
@@ -292,7 +295,7 @@ class SensorGraph {
                 line.setStrokeWidth(2);
                 pane.getChildren().add(line);
             }}
-        return mesh_edges;
+            return mesh_edges;
     }
 
     public void renderMeshNetwork(Pane pane) {
@@ -346,7 +349,7 @@ class SensorGraph {
                     min_distance = curr_distance;
                     nearest_node = node;
                 }}
-            tsp_solution.add(nearest_node);
+                tsp_solution.add(nearest_node);
             points_to_visit.remove(nearest_node);
             selected_node = nearest_node;
         }
@@ -404,6 +407,64 @@ class SensorGraph {
                 }}}
     }
 
+    public void computeMSTBasedTSP(Pane pane) {
+        Set<NodePoint> rendezvous_points = new HashSet<>(next_pt_map.values());
+        NodePoint depot = new NodePoint(-1, 10, 10);
+        rendezvous_points.add(depot);
+
+        renderDestPoints(pane, rendezvous_points);
+        Map<NodePoint, List<NodePoint>> mst = constructMinimumSpanningTree(rendezvous_points);
+        List<NodePoint> tsp_path = new ArrayList<>();
+        Set<NodePoint> visited = new HashSet<>();
+        performPreorderTraversal(depot, mst, tsp_path, visited);
+        renderTSPPath(tsp_path, pane);
+    }
+
+    private Map<NodePoint, List<NodePoint>> constructMinimumSpanningTree(Set<NodePoint> nodes) {
+        Map<NodePoint, List<NodePoint>> mst = new HashMap<>();
+        PriorityQueue<EdgeMst> pq = new PriorityQueue<>(Comparator.comparingDouble(e -> e.weight));
+
+        NodePoint start = nodes.iterator().next();
+        Set<NodePoint> visited = new HashSet<>();
+        visited.add(start);
+
+        for (NodePoint neighbor : nodes) {
+            if (!neighbor.equals(start)) {
+                pq.add(new EdgeMst(start, neighbor));
+            }
+        }
+
+        while (!pq.isEmpty() && visited.size() < nodes.size()) {
+            EdgeMst edge = pq.poll();
+            if (visited.contains(edge.end)) continue;
+
+            mst.computeIfAbsent(edge.start, k -> new ArrayList<>()).add(edge.end);
+            mst.computeIfAbsent(edge.end, k -> new ArrayList<>()).add(edge.start);
+
+            visited.add(edge.end);
+
+            for (NodePoint neighbor : nodes) {
+                if (!visited.contains(neighbor)) {
+                    pq.add(new EdgeMst(edge.end, neighbor));
+                }
+            }
+        }
+        return mst;
+    }
+
+    private void performPreorderTraversal(NodePoint node, Map<NodePoint, List<NodePoint>> mst, List<NodePoint> tsp_path, Set<NodePoint> visited) {
+        visited.add(node);
+        tsp_path.add(node);
+
+        List<NodePoint> neighbors = mst.getOrDefault(node, Collections.emptyList());
+
+        for (NodePoint neighbor : neighbors) {
+            if (!visited.contains(neighbor)) {
+                performPreorderTraversal(neighbor, mst, tsp_path, visited);
+            }
+        }
+    }
+
     private void renderTSPPath(List<NodePoint> tsp_path, Pane pane) {
         double total_distance = 0;
 
@@ -426,7 +487,7 @@ class SensorGraph {
         line.setStrokeWidth(2);
         pane.getChildren().add(line);
 
-        System.out.println("Total energy for MST Preorder TSP: " + total_distance * 100 + " Joules");
+        System.out.println("Approximation Energy: " + total_distance * 100);
     }
 
     public void visualizeNetworkGraph(Stage primary_stage) {
@@ -436,6 +497,7 @@ class SensorGraph {
         Pane graph_pane = new Pane();
         renderNetworkGraph(graph_pane);
         renderAllMSTs(graph_pane);
+        computeMSTBasedTSP(graph_pane);
         renderGreedyTSP(graph_pane);
 
         graph_tab.setContent(new ScrollPane(graph_pane));
@@ -523,7 +585,7 @@ class SensorGraph {
                     queue.remove(edge.destination);
                     queue.add(edge.destination);
                 }}}
-        return predecessors;
+                return predecessors;
     }
 
     public Map<NodePoint, Map<NodePoint, NodePoint>> precomputeDestPaths() {
